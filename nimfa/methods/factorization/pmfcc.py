@@ -123,8 +123,7 @@ class Pmfcc(smf.Smf):
 
     def set_params(self):
         """Set algorithm specific model options."""
-        self.Theta = self.options.get(
-            'Theta', np.mat(np.zeros((self.V.shape[1], self.V.shape[1]))))
+        self.Theta = self.options.get('Theta', sp.csr_matrix((self.V.shape[1], self.V.shape[1])))
         self.track_factor = self.options.get('track_factor', False)
         self.track_error = self.options.get('track_error', False)
         self.tracker = mf_track.Mf_track(
