@@ -26,6 +26,11 @@ from nimfa.utils.linalg import *
 
 import operator
 
+import time
+
+def _separate_pn(a):
+    return max(a, 0), min(a, 0)*(-1)
+
 class Pmfcc(smf.Smf):
 
     """
@@ -50,13 +55,14 @@ class Pmfcc(smf.Smf):
          
         Return fitted factorization model.
         """
-        self._Theta_p = multiply(self.Theta, sop(self.Theta, 0, operator.gt))
-        self._Theta_n = multiply(self.Theta, sop(self.Theta, 0, operator.lt)*(-1))
+        self._Theta_p, self._Theta_n = _separate_pn(self.Theta)
 
         for run in xrange(self.n_run):
             # [FWang2008]_; H = G.T, W = F (Table 2)
             self.W, self.H = self.seed.initialize(
                 self.V, self.rank, self.options)
+            #H has to be non-negative
+            self.H = max(self.H, 0)
             p_obj = c_obj = sys.float_info.max
             best_obj = c_obj if run == 0 else best_obj
             iter = 0
@@ -125,25 +131,23 @@ class Pmfcc(smf.Smf):
 
     def update(self):
         """Update basis and mixture matrix."""
-        self.W = dot(self.V, dot(self.H.T, inv_svd(dot(self.H, self.H.T))))
+        print np.max(dot(self.H, self.H.T))
+        dotH = dot(self.H, self.H.T)
+        if np.max(dotH) > 1e100: #it can look in inv_svd
+            raise np.linalg.linalg.LinAlgError()
+        self.W = dot(self.V, dot(self.H.T, inv_svd(dotH)))
 
         FtF = dot(self.W.T, self.W)
         XtF = dot(self.V.T, self.W)
-        tmp1 = sop(FtF, 0, ge)
-        tmp2 = tmp1.todense() - 1 if sp.isspmatrix(tmp1) else tmp1 - 1
-        FtF_p = multiply(FtF, tmp1)
-        FtF_n = multiply(FtF, tmp2)
-        tmp1 = sop(XtF, 0, ge)
-        tmp2 = tmp1.todense() - 1 if sp.isspmatrix(tmp1) else tmp1 - 1
-        XtF_p = multiply(XtF, tmp1)
-        XtF_n = multiply(XtF, tmp2)
+        FtF_p, FtF_n = _separate_pn(FtF)
+        XtF_p, XtF_n = _separate_pn(XtF)
 
         Theta_n_G = dot(self._Theta_n, self.H.T)
         Theta_p_G = dot(self._Theta_p, self.H.T)
 
         GFtF_p = dot(self.H.T, FtF_p)
         GFtF_n = dot(self.H.T, FtF_n)
-
+        
         enum = XtF_p + GFtF_n + Theta_n_G
         denom = XtF_n + GFtF_p + Theta_p_G
 
