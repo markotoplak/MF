@@ -131,7 +131,7 @@ class Pmfcc(smf.Smf):
 
     def update(self):
         """Update basis and mixture matrix."""
-        print np.max(dot(self.H, self.H.T))
+        #print np.max(dot(self.H, self.H.T))
         dotH = dot(self.H, self.H.T)
         if np.max(dotH) > 1e100: #it can look in inv_svd
             raise np.linalg.linalg.LinAlgError()
