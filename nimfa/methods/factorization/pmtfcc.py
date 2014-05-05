@@ -52,7 +52,6 @@ class Pmtfcc(smf.Smf):
         self.name = "pmtfcc"
         self.aseeds = ["random", "fixed", "nndsvd", "random_c", "random_vcol"]
         smf.Smf.__init__(self, params)
-        smf.Smf.__init__(self, params)
         self.set_params()
 
     def factorize(self):
@@ -75,8 +74,7 @@ class Pmtfcc(smf.Smf):
 
             k = self.rank
             self.G1 = rs.gen_dense(self.V.shape[0], k)
-            self.H = rs.gen_dense(k, self.V.shape[1]) 
-
+            self.H = rs.gen_dense(k+1, self.V.shape[1]) 
             """
 
             #for now k1 = k2 so we can use nimfa's seeding methods
