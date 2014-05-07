@@ -66,20 +66,20 @@ class Pmtfcc(smf.Smf):
         for run in xrange(self.n_run):
             # [FWang2008]_; H = G2.T, W = S, G1=G1
 
-            """
             #just random seeding
             rs = nimfa.methods.seeding.random.Random()
             rs.max = self.V.max()
             rs.prng = np.random.RandomState()
 
             k = self.rank
+            #rs.max = 1./self.V.shape[0]
             self.G1 = rs.gen_dense(self.V.shape[0], k)
-            self.H = rs.gen_dense(k+1, self.V.shape[1]) 
-            """
+            #rs.max = 1./self.V.shape[1]
+            self.H = rs.gen_dense(k, self.V.shape[1]) 
 
             #for now k1 = k2 so we can use nimfa's seeding methods
-            self.G1, self.H = self.seed.initialize(
-                self.V, self.rank, self.options)
+            #self.G1, self.H = self.seed.initialize(
+            #    self.V, self.rank, self.options)
 
             #H has to be non-negative
 
@@ -105,6 +105,7 @@ class Pmtfcc(smf.Smf):
                 iter += 1
                 c_obj = self.objective(
                 ) if not self.test_conv or iter % self.test_conv == 0 else c_obj
+                print iter, c_obj
                 if self.track_error:
                     self.tracker.track_error(run, c_obj)
             if self.callback:
@@ -169,34 +170,35 @@ class Pmtfcc(smf.Smf):
         T1n, T1p = self._Theta1_n, self._Theta1_p
         T2n, T2p = self._Theta2_n, self._Theta2_p
 
+        ts = time.time()
         dotG1 = dot(G1.T, G1)
         dotG2 = dot(G2.T, G2)
-
-        #print G2
-        #print np.max(dotG1), np.max(dotG2)
 
         if np.max(dotG1) > 1e100 or np.max(dotG2) > 1e100 : #it can loop in inv_svd
             raise np.linalg.linalg.LinAlgError()
 
         def addeps(denom):
-            return denom.todense() + np.finfo(float).eps \
-                if sp.isspmatrix(denom) else denom + np.finfo(float).eps
- 
+            return denom + np.finfo(float).eps
+
         S = dotmore(inv_svd(dotG1), G1.T, R, G2, inv_svd(dotG2))
 
         p1_p, p1_n = _separate_pn(dotmore(R, G2, S.T))
         p22_p, p22_n = _separate_pn(dotmore(S, G2.T, G2, S.T)) #error in the article (swapped S and S.T)
-        enum = p1_p + dot(G1, p22_n) + dot(T1n, G1)
-        denom = p1_n + dot(G1, p22_p) + dot(T1p, G1)
-        #denom = addeps(denom)
-        G1 = multiply(G1, sop(elop(enum, denom, div), s=None, op=np.sqrt))
-
+        enum = p1_p + dot(G1, p22_n) + T1n.dot(G1) #direct calls as they avoid intermediate contructions
+        denom = p1_n + dot(G1, p22_p) + T1p.dot(G1)
+        denom = addeps(denom)
+        #G1 = multiply(G1, sop(elop(enum, denom, div), s=None, op=np.sqrt))
+        G1 = np.multiply(G1, np.sqrt(enum/denom)) #five times faster
+        
         p1_p, p1_n = _separate_pn(dotmore(R.T, G1, S))
         p22_p, p22_n = _separate_pn(dotmore(S.T, G1.T, G1, S)) #error in the article (swapped S and S.T)
-        enum = p1_p + dot(G2, p22_n) + dot(T2n, G2)
-        denom = p1_n + dot(G2, p22_p) + dot(T2p, G2)
-        #denom = addeps(denom)
-        G2 = multiply(G2, sop(elop(enum, denom, div), s=None, op=np.sqrt))
+        enum = p1_p + dot(G2, p22_n) + T2n.dot(G2) #direct calls avoid intermediate constructions of dot
+        denom = p1_n + dot(G2, p22_p) + T2p.dot(G2)
+        denom = addeps(denom)
+        #G2 = multiply(G2, sop(elop(enum, denom, div), s=None, op=np.sqrt))
+        G2 = np.multiply(G2, np.sqrt(enum/denom))
+
+        print "all", time.time() - ts
 
         self.W = S
         self.H = G2.T
@@ -204,7 +206,10 @@ class Pmtfcc(smf.Smf):
 
     def objective(self):
         """Compute Frobenius distance cost function with penalization term."""
-        return power(self.V - dotmore(self.G1, self.W, self.H), 2).sum() + trace(dotmore(self.H, self.Theta2, self.H.T)) + trace(dotmore(self.G1.T, self.Theta1, self.G1))
+        #n = power(self.V - dotmore(self.G1, self.W, self.H), 2).sum()
+        n = np.linalg.norm(self.V - dotmore(self.G1, self.W, self.H))**2
+        r = trace(dot(self.H, self.Theta2.dot(self.H.T))) + trace(dot(self.G1.T, self.Theta1.dot(self.G1)))
+        return n+r
 
     def __str__(self):
         return self.name
