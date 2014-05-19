@@ -132,13 +132,9 @@ class Pmfcc(smf.Smf):
 
     def update(self):
         """Update basis and mixture matrix."""
-        #print np.max(dot(self.H, self.H.T))
-
-        import time
-
-        t = time.time()
 
         dotH = dot(self.H, self.H.T)
+        print "max dotH", np.max(dotH)
         if np.max(dotH) > 1e100: #it can look in inv_svd
             raise np.linalg.linalg.LinAlgError()
         self.W = dot(self.V, dot(self.H.T, inv_svd(dotH)))
@@ -162,20 +158,15 @@ class Pmfcc(smf.Smf):
 
         denom = denom.todense() + np.finfo(float).eps if sp.isspmatrix(
             denom) else denom + np.finfo(float).eps
-        print "p1", time.time() - t
         Ht = multiply(
             self.H.T, sop(elop(enum, denom, div), s=None, op=np.sqrt))
 
-        print "all", time.time() - t 
         self.H = Ht.T
 
     def objective(self):
         """Compute Frobenius distance cost function with penalization term."""
-        t =  time.time()
         n =  np.linalg.norm(self.V - dot(self.W, self.H))**2
-        print "objm", time.time() - t 
         o =  trace(dot(self.H, self.Theta.dot(self.H.T)))
-        print "obj", time.time() - t
         return n+o
 
     def __str__(self):
