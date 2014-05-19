@@ -77,6 +77,7 @@ class Pmfcc(smf.Smf):
                 iter += 1
                 c_obj = self.objective(
                 ) if not self.test_conv or iter % self.test_conv == 0 else c_obj
+                print iter, c_obj
                 if self.track_error:
                     self.tracker.track_error(run, c_obj)
             if self.callback:
@@ -132,18 +133,26 @@ class Pmfcc(smf.Smf):
     def update(self):
         """Update basis and mixture matrix."""
         #print np.max(dot(self.H, self.H.T))
+
+        import time
+
+        t = time.time()
+
         dotH = dot(self.H, self.H.T)
         if np.max(dotH) > 1e100: #it can look in inv_svd
             raise np.linalg.linalg.LinAlgError()
         self.W = dot(self.V, dot(self.H.T, inv_svd(dotH)))
+
+        #assume W and H are not sparse and that theta
+        #is either sparse or in CSR
 
         FtF = dot(self.W.T, self.W)
         XtF = dot(self.V.T, self.W)
         FtF_p, FtF_n = _separate_pn(FtF)
         XtF_p, XtF_n = _separate_pn(XtF)
 
-        Theta_n_G = dot(self._Theta_n, self.H.T)
-        Theta_p_G = dot(self._Theta_p, self.H.T)
+        Theta_n_G = self._Theta_n.dot(self.H.T)
+        Theta_p_G = self._Theta_p.dot(self.H.T)
 
         GFtF_p = dot(self.H.T, FtF_p)
         GFtF_n = dot(self.H.T, FtF_n)
@@ -153,13 +162,21 @@ class Pmfcc(smf.Smf):
 
         denom = denom.todense() + np.finfo(float).eps if sp.isspmatrix(
             denom) else denom + np.finfo(float).eps
+        print "p1", time.time() - t
         Ht = multiply(
             self.H.T, sop(elop(enum, denom, div), s=None, op=np.sqrt))
+
+        print "all", time.time() - t 
         self.H = Ht.T
 
     def objective(self):
         """Compute Frobenius distance cost function with penalization term."""
-        return power(self.V - dot(self.W, self.H), 2).sum() + trace(dot(self.H, dot(self.Theta, self.H.T)))
+        t =  time.time()
+        n =  np.linalg.norm(self.V - dot(self.W, self.H))**2
+        print "objm", time.time() - t 
+        o =  trace(dot(self.H, self.Theta.dot(self.H.T)))
+        print "obj", time.time() - t
+        return n+o
 
     def __str__(self):
         return self.name

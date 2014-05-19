@@ -66,6 +66,7 @@ class Pmtfcc(smf.Smf):
         for run in xrange(self.n_run):
             # [FWang2008]_; H = G2.T, W = S, G1=G1
 
+            """
             #just random seeding
             rs = nimfa.methods.seeding.random.Random()
             rs.max = self.V.max()
@@ -76,10 +77,11 @@ class Pmtfcc(smf.Smf):
             self.G1 = rs.gen_dense(self.V.shape[0], k)
             #rs.max = 1./self.V.shape[1]
             self.H = rs.gen_dense(k, self.V.shape[1]) 
+            """
 
             #for now k1 = k2 so we can use nimfa's seeding methods
-            #self.G1, self.H = self.seed.initialize(
-            #    self.V, self.rank, self.options)
+            self.G1, self.H = self.seed.initialize(
+                self.V, self.rank, self.options)
 
             #H has to be non-negative
 
@@ -105,7 +107,7 @@ class Pmtfcc(smf.Smf):
                 iter += 1
                 c_obj = self.objective(
                 ) if not self.test_conv or iter % self.test_conv == 0 else c_obj
-                print iter, c_obj
+                #print iter, c_obj
                 if self.track_error:
                     self.tracker.track_error(run, c_obj)
             if self.callback:
@@ -170,7 +172,6 @@ class Pmtfcc(smf.Smf):
         T1n, T1p = self._Theta1_n, self._Theta1_p
         T2n, T2p = self._Theta2_n, self._Theta2_p
 
-        ts = time.time()
         dotG1 = dot(G1.T, G1)
         dotG2 = dot(G2.T, G2)
 
@@ -197,8 +198,6 @@ class Pmtfcc(smf.Smf):
         denom = addeps(denom)
         #G2 = multiply(G2, sop(elop(enum, denom, div), s=None, op=np.sqrt))
         G2 = np.multiply(G2, np.sqrt(enum/denom))
-
-        print "all", time.time() - ts
 
         self.W = S
         self.H = G2.T
