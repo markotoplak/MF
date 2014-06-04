@@ -77,7 +77,7 @@ class Pmfcc(smf.Smf):
                 iter += 1
                 c_obj = self.objective(
                 ) if not self.test_conv or iter % self.test_conv == 0 else c_obj
-                print iter, c_obj
+                #print iter, c_obj
                 if self.track_error:
                     self.tracker.track_error(run, c_obj)
             if self.callback:
@@ -134,7 +134,7 @@ class Pmfcc(smf.Smf):
         """Update basis and mixture matrix."""
 
         dotH = dot(self.H, self.H.T)
-        print "max dotH", np.max(dotH)
+        #print "max dotH", np.max(dotH)
         if np.max(dotH) > 1e10: #it can loop in inv_svd, it is problematic optimization anyway
             raise np.linalg.linalg.LinAlgError()
         self.W = dot(self.V, dot(self.H.T, inv_svd(dotH)))
