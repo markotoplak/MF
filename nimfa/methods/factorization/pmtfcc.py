@@ -110,6 +110,8 @@ class Pmtfcc(smf.Smf):
                 #print iter, c_obj
                 if self.track_error:
                     self.tracker.track_error(run, c_obj)
+            for i in range(1000):
+                self.update(fitS=False)
             if self.callback:
                 self.final_obj = c_obj
                 self.n_iter = iter
@@ -161,7 +163,7 @@ class Pmtfcc(smf.Smf):
         self.tracker = mf_track.Mf_track(
         ) if self.track_factor and self.n_run > 1 or self.track_error else None
 
-    def update(self):
+    def update(self, fitS=True, fitG1=True, fitG2=True):
         """Update basis and mixture matrix."""
         # [FWang2008]_; H = G2.T, W = S, G1=G1
 
@@ -172,32 +174,36 @@ class Pmtfcc(smf.Smf):
         T1n, T1p = self._Theta1_n, self._Theta1_p
         T2n, T2p = self._Theta2_n, self._Theta2_p
 
-        dotG1 = dot(G1.T, G1)
-        dotG2 = dot(G2.T, G2)
-
-        if np.max(dotG1) > 1e100 or np.max(dotG2) > 1e100 : #it can loop in inv_svd
-            raise np.linalg.linalg.LinAlgError()
-
         def addeps(denom):
             return denom + np.finfo(float).eps
 
-        S = dotmore(inv_svd(dotG1), G1.T, R, G2, inv_svd(dotG2))
+        if fitS:
+            dotG1 = dot(G1.T, G1)
+            dotG2 = dot(G2.T, G2)
 
-        p1_p, p1_n = _separate_pn(dotmore(R, G2, S.T))
-        p22_p, p22_n = _separate_pn(dotmore(S, G2.T, G2, S.T)) #error in the article (swapped S and S.T)
-        enum = p1_p + dot(G1, p22_n) + T1n.dot(G1) #direct calls as they avoid intermediate contructions
-        denom = p1_n + dot(G1, p22_p) + T1p.dot(G1)
-        denom = addeps(denom)
-        #G1 = multiply(G1, sop(elop(enum, denom, div), s=None, op=np.sqrt))
-        G1 = np.multiply(G1, np.sqrt(enum/denom)) #five times faster
-        
-        p1_p, p1_n = _separate_pn(dotmore(R.T, G1, S))
-        p22_p, p22_n = _separate_pn(dotmore(S.T, G1.T, G1, S)) #error in the article (swapped S and S.T)
-        enum = p1_p + dot(G2, p22_n) + T2n.dot(G2) #direct calls avoid intermediate constructions of dot
-        denom = p1_n + dot(G2, p22_p) + T2p.dot(G2)
-        denom = addeps(denom)
-        #G2 = multiply(G2, sop(elop(enum, denom, div), s=None, op=np.sqrt))
-        G2 = np.multiply(G2, np.sqrt(enum/denom))
+            if np.max(dotG1) > 1e100 or np.max(dotG2) > 1e100 : #it can loop in inv_svd
+                raise np.linalg.linalg.LinAlgError()
+
+            S = dotmore(inv_svd(dotG1), G1.T, R, G2, inv_svd(dotG2))
+
+        if fitG1:
+            p1_p, p1_n = _separate_pn(dotmore(R, G2, S.T))
+            p22_p, p22_n = _separate_pn(dotmore(S, G2.T, G2, S.T)) #error in the article (swapped S and S.T)
+            enum = p1_p + dot(G1, p22_n) + T1n.dot(G1) #direct calls as they avoid intermediate contructions
+            denom = p1_n + dot(G1, p22_p) + T1p.dot(G1)
+            denom = addeps(denom)
+            #G1 = multiply(G1, sop(elop(enum, denom, div), s=None, op=np.sqrt))
+            G1 = np.multiply(G1, np.sqrt(enum/denom)) #five times faster
+            
+        if fitG2:
+            p1_p, p1_n = _separate_pn(dotmore(R.T, G1, S))
+            p22_p, p22_n = _separate_pn(dotmore(S.T, G1.T, G1, S)) #error in the article (swapped S and S.T)
+            enum = p1_p + dot(G2, p22_n) + T2n.dot(G2) #direct calls avoid intermediate constructions of dot
+            denom = p1_n + dot(G2, p22_p) + T2p.dot(G2)
+            denom = addeps(denom)
+            #G2 = multiply(G2, sop(elop(enum, denom, div), s=None, op=np.sqrt))
+            G2 = np.multiply(G2, np.sqrt(enum/denom))
+            #print G2
 
         self.W = S
         self.H = G2.T
